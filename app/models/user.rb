@@ -726,7 +726,7 @@ class User < ApplicationRecord
   end
 
   def can_view_banned_competitors?
-    admin? || staff?
+    admin? || wdc_team? || ethics_committee? || results_team? || staff_delegate?
   end
 
   def can_manage_regional_organizations?
