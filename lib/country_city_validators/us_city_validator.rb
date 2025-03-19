@@ -52,6 +52,7 @@ module CountryCityValidators
     West\ Virginia
     Wisconsin
     Wyoming
+    District\ Of\ Columbia
   ).to_set
 
   US_TERRITORIES = %w(
