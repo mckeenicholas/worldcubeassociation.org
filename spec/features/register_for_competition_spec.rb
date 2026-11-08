@@ -224,6 +224,25 @@ RSpec.feature "Registering for a competition", :js do
       expect(registration.reload.guests).to eq 1
     end
 
+    scenario "shows the refund policy on the edit page" do
+      paid_competition = create(
+        :competition,
+        :registration_open,
+        :visible,
+        :stripe_connected,
+        delegates: [delegate],
+        refund_policy_percent: 90,
+        refund_policy_limit_date: 2.weeks.from_now,
+      )
+      paid_registration = create(:registration, :paid, user: user, competition: paid_competition)
+
+      visit edit_registration_path(paid_registration)
+
+      expect(page).to have_text("The base registration fee for this competition is $10.00 (United States Dollar).")
+      expect(page).to have_text("the competitor will be refunded 90% of their registration fee")
+      expect(page).to have_text("Calculated refund amount: $9.00 (USD)")
+    end
+
     scenario "updating his own registration" do
       # The expected '10' at the beginning here is a default value in the factory
       expect(delegate_registration.guests).to eq 10

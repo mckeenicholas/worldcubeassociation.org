@@ -4,6 +4,7 @@ import {
   Button, Header, Message, Table,
 } from 'semantic-ui-react';
 import _ from 'lodash';
+import { DateTime } from 'luxon';
 import getRegistrationPayments from '../api/payment/get/getRegistrationPayments';
 import refundPayment from '../api/payment/get/refundPayment';
 import Loading from '../../Requests/Loading';
@@ -19,6 +20,7 @@ import { useConfirm } from '../../../lib/providers/ConfirmProvider';
 export default function RegistrationPayments({
   registrationId,
   competitionId,
+  competitionInfo,
 }) {
   const {
     data: payments,
@@ -53,13 +55,78 @@ export default function RegistrationPayments({
         {I18n.t('payments.header')}
         <Button floated="right" onClick={refetchPayments}>{I18n.t('misc.refresh')}</Button>
       </Header>
+      <RefundPolicyInformation competitionInfo={competitionInfo} />
       <PaymentsMainBody
         registrationId={registrationId}
         payments={payments}
         competitionId={competitionId}
+        competitionInfo={competitionInfo}
         userInfo={userInfo}
       />
     </>
+  );
+}
+
+function calculatePolicyRefundAmount({
+  base_entry_fee_lowest_denomination: baseEntryFee,
+  refund_policy_percent: refundPolicyPercent,
+}) {
+  if (!baseEntryFee || !refundPolicyPercent) {
+    return null;
+  }
+
+  return Math.floor((baseEntryFee * refundPolicyPercent) / 100);
+}
+
+function RefundPolicyInformation({ competitionInfo }) {
+  const {
+    base_entry_fee_lowest_denomination: baseEntryFee,
+    currency_code: currencyCode,
+    refund_policy_percent: refundPolicyPercent,
+    refund_policy_limit_date: refundPolicyLimitDate,
+  } = competitionInfo;
+
+  if (!baseEntryFee) {
+    return null;
+  }
+
+  const baseEntryFeeString = isoMoneyToHumanReadable(baseEntryFee, currencyCode, true);
+  const refundPolicyPercentString = Intl.NumberFormat(I18n.locale, {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  }).format(refundPolicyPercent / 100);
+
+  return (
+    <Message info>
+      <p>
+        {I18n.t('competitions.competition_info.entry_fee_is', {
+          base_entry_fee: baseEntryFeeString,
+        })}
+      </p>
+      {refundPolicyPercent > 0 && (
+        <>
+          <p>
+            {I18n.t('payments.messages.refund_policy', {
+              refund_policy_percent: refundPolicyPercentString,
+              limit_date_and_time: DateTime.fromISO(refundPolicyLimitDate)
+                .setZone('local')
+                .toLocaleString(DateTime.DATETIME_FULL),
+            })}
+          </p>
+          <p>
+            {I18n.t('payments.labels.calculated_refund', {
+              refund_amount: isoMoneyToHumanReadable(
+                calculatePolicyRefundAmount(competitionInfo),
+                currencyCode,
+              ),
+            })}
+          </p>
+        </>
+      )}
+      {refundPolicyPercent === 0 && (
+        <p>{I18n.t('competitions.competition_info.no_refunds')}</p>
+      )}
+    </Message>
   );
 }
 
@@ -67,6 +134,7 @@ function PaymentsMainBody({
   registrationId,
   payments,
   competitionId,
+  competitionInfo,
   userInfo,
 }) {
   const dispatch = useDispatch();
@@ -134,6 +202,7 @@ function PaymentsMainBody({
               refundMutation={refundMutation}
               isMutating={isMutating}
               competitionId={competitionId}
+              competitionInfo={competitionInfo}
               key={refund.payment_id}
               userInfo={userInfo}
             />
@@ -145,9 +214,13 @@ function PaymentsMainBody({
 }
 
 function PaymentRow({
-  payment, refundMutation, isMutating, competitionId, userInfo,
+  payment, refundMutation, isMutating, competitionId, competitionInfo, userInfo,
 }) {
-  const [amountToRefund, setAmountToRefund] = useInputState(payment.iso_amount_refundable);
+  const policyRefundAmount = calculatePolicyRefundAmount(competitionInfo);
+  const defaultRefundAmount = policyRefundAmount
+    ? Math.min(payment.iso_amount_refundable, policyRefundAmount)
+    : payment.iso_amount_refundable;
+  const [amountToRefund, setAmountToRefund] = useInputState(defaultRefundAmount);
 
   const confirm = useConfirm();
 

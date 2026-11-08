@@ -261,6 +261,7 @@ export default function RegistrationEditor({ registrationId, competitor, competi
         <RegistrationPayments
           competitionId={competitionInfo.id}
           registrationId={registrationId}
+          competitionInfo={competitionInfo}
         />
       )}
       <RegistrationHistory registrationId={registrationId} />
